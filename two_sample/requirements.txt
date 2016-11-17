@@ -1,0 +1,13 @@
+Theano>=0.8.0
+git+https://github.com/Lasagne/Lasagne
+numpy
+matplotlib
+scipy
+scikit-learn
+pandas
+six
+seaborn
+jupyter_client
+nbconvert
+statsmodels
+progressbar2
