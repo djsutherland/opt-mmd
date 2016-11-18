@@ -28,3 +28,31 @@ done
 - To look at the powers and the bandwidths chosen for a single parameter setting, like Figure 2b of the paper, run e.g. `python fixed_eval.py res_fixed/blobs/rat6/n500.h5` and then look at the Jupyter notebook created in the same folder.
 
 - To plot the rejection rates across different parameter settings, like Figure 2c of the paper, see the file [`fixed_overall.ipynb`](fixed_overall.ipynb).
+
+
+### GAN model criticism
+
+To replicate the GAN model criticism from the paper, first you'll need samples from a trained GAN.
+
+The [`generate.sample_mnist_minibatch_gan`](generate.py#L136) function handles sampling from an [Improved GAN model](https://github.com/openai/improved-gan). Unfortunately, their repo doesn't currently include code for minibatch discrimination on MNIST. My fork has a file that does what the authors told me by email that they did: [`train_mnist_minibatch_discrimination.py`](https://github.com/dougalsutherland/improved-gan/blob/mnist-minibatch/mnist_svhn_cifar10/train_mnist_minibatch_discrimination.py). Or you can just get [the trained model that I used](https://github.com/dougalsutherland/improved-gan/blob/mnist-minibatch-with-model/mnist_svhn_cifar10/mnist_minibatch_count100_scaled_1.npz?raw=true).
+
+(If you wanted to do this for your own data, you'd want to implement a function in `generate` to sample from it.)
+
+Then, to learn an ARD kernel, I used:
+```
+THEANO_FLAGS=device=gpu,lib.cnmem=1 python learn_kernel.py \
+  --net-version scaling --max-ratio \
+  --init-sigma-median --opt-sigma --num-epochs 10000 \
+  --{n-train,n-test}=2000 --{,val-}batchsize=500 \
+  --mnist-minibatch-gan PATH/TO/mnist_minibatch_count100_scaled_1.npz \
+  --trim-edges --scaled --bw \
+  results/gan/ard_maxratio_bw_trim.npz
+```
+(10,000 iterations is overkill; it converges well before that. You might need to change the Theano flags for your device.)
+
+To evaluate the power of the result:
+```
+python eval_kernel.py --n-reps 100 results/gan/ard_maxratio_bw_trim.npz
+```
+
+To evaluate the power of a plain RBF kernel with optimized sigma, do the same thing but with `--net-version nothing`. For the median-heuristic RBF kernel, do `--net-version nothing --no-opt-sigma --num-epochs 0`.
