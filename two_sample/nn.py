@@ -3,6 +3,9 @@ neural network stuff, intended to be used with Lasagne.
 
 Taken from
   https://github.com/openai/improved-gan/blob/master/mnist_svhn_cifar10/nn.py
+
+NOTE: Written by Tim Salimans. Does not fall under the BSD license of
+the rest of the repository; licensing is unclear.
 """
 
 import numpy as np
