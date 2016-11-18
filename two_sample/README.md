@@ -17,11 +17,13 @@ We also need a relatively recent version of [Lasagne](http://lasagne.readthedocs
 
 To reproduce the figures from the Blobs experiment:
 
-- First, create the results files with `fixed_run.py`. This will take a little while, since it's doing lots of replications:
+- First, create the results files with `fixed_run.py`. This will take a while, since it's doing lots of replications:
 
-    for r in 1 2 4 6 8 10; do
-       python fixed_run.py -n 500 --blobs $r
-    done
+```
+for r in 1 2 4 6 8 10; do
+  python fixed_run.py -n 500 --blobs $r
+done
+```
 
 - To look at the powers and the bandwidths chosen for a single parameter setting, like Figure 2b of the paper, run e.g. `python fixed_eval.py res_fixed/blobs/rat6/n500.h5` and then look at the Jupyter notebook created in the same folder.
 
