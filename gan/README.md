@@ -7,21 +7,12 @@ if you have any questions.
 
 First download the mnist files: `data/mnist/fetch.sh`
 
-- The original MMD generative model:
-
-    bash run_mmd.sh
+- The original MMD generative model: `bash run_mmd.sh`
 
 
-- The model maximizing the MMD/variance t-statistic:
-
-    bash run_tmmd.sh
+- The model maximizing the MMD/variance t-statistic: `bash run_tmmd.sh`
 
 - MMD generative model with adversarially optimized kernel function using GAN
-loss:
+loss: `bash run_mmd_fm.sh`
 
-    bash run_mmd_fm.sh
-
-
-Visualize the results with tensorboard:
-
-    tensorboard --logdir=logs_mmd --port=1234 
+- Visualize the results with tensorboard: `tensorboard --logdir=logs_mmd --port=1234`
