@@ -2,7 +2,9 @@
 
 cd $(dirname $0)
 
-wget -c http://yann.lecun.com/exdb/mnist/train-images-idx3-ubyte.gz \
-        http://yann.lecun.com/exdb/mnist/train-labels-idx1-ubyte.gz \
-        http://yann.lecun.com/exdb/mnist/t10k-images-idx3-ubyte.gz \
-        http://yann.lecun.com/exdb/mnist/t10k-labels-idx1-ubyte.gz
+for fn in {train,t10k}-{images-idx3,labels-idx1}-ubyte; do
+    if [[ ! -e $fn ]]; then
+        wget -c http://yann.lecun.com/exdb/mnist/$fn.gz
+        gunzip $fn.gz
+    fi
+done

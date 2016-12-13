@@ -1,1 +1,2 @@
-*.gz
+*-ubyte
+*-ubyte.gz
