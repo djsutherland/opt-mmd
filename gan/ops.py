@@ -1,10 +1,7 @@
-import math
-import numpy as np 
 import tensorflow as tf
 
 from tensorflow.python.framework import ops
 
-from utils import *
 
 class batch_norm(object):
     """Code modification of http://stackoverflow.com/a/33950177"""
@@ -20,18 +17,18 @@ class batch_norm(object):
         shape = x.get_shape().as_list()
 
         if train:
-            with tf.variable_scope(self.name) as scope:
+            with tf.variable_scope(self.name):
                 self.beta = tf.get_variable("beta", [shape[-1]],
                                     initializer=tf.constant_initializer(0.))
                 self.gamma = tf.get_variable("gamma", [shape[-1]],
                                     initializer=tf.constant_initializer(1.))
                                     #initializer=tf.random_normal_initializer(1., 0.02))
-                
+
                 try:
                     batch_mean, batch_var = tf.nn.moments(x, [0, 1, 2], name='moments')
                 except:
                     batch_mean, batch_var = tf.nn.moments(x, [0, 1], name='moments')
-                    
+
                 ema_apply_op = self.ema.apply([batch_mean, batch_var])
                 self.ema_mean, self.ema_var = self.ema.average(batch_mean), self.ema.average(batch_var)
 
@@ -44,6 +41,7 @@ class batch_norm(object):
                 x, mean, var, self.beta, self.gamma, self.epsilon, scale_after_normalization=True)
 
         return normed
+
 
 def binary_cross_entropy(preds, targets, name=None):
     """Computes binary cross entropy given `preds`.
@@ -63,13 +61,15 @@ def binary_cross_entropy(preds, targets, name=None):
         return tf.reduce_mean(-(targets * tf.log(preds + eps) +
                               (1. - targets) * tf.log(1. - preds + eps)))
 
+
 def conv_cond_concat(x, y):
     """Concatenate conditioning vector on feature map axis."""
     x_shapes = x.get_shape()
     y_shapes = y.get_shape()
     return tf.concat(3, [x, y*tf.ones([x_shapes[0], x_shapes[1], x_shapes[2], y_shapes[3]])])
 
-def conv2d(input_, output_dim, 
+
+def conv2d(input_, output_dim,
            k_h=5, k_w=5, d_h=2, d_w=2, stddev=0.02,
            name="conv2d"):
     with tf.variable_scope(name):
@@ -82,6 +82,7 @@ def conv2d(input_, output_dim,
 
         return conv
 
+
 def deconv2d(input_, output_shape,
              k_h=5, k_w=5, d_h=2, d_w=2, stddev=0.02,
              name="deconv2d", with_w=False):
@@ -89,7 +90,7 @@ def deconv2d(input_, output_shape,
         # filter : [height, width, output_channels, in_channels]
         w = tf.get_variable('w', [k_h, k_w, output_shape[-1], input_.get_shape()[-1]],
                             initializer=tf.random_normal_initializer(stddev=stddev))
-        
+
         try:
             deconv = tf.nn.conv2d_transpose(input_, w, output_shape=output_shape,
                                 strides=[1, d_h, d_w, 1])
@@ -106,10 +107,11 @@ def deconv2d(input_, output_shape,
             return deconv, w, biases
         else:
             return deconv
-       
+
 
 def lrelu(x, leak=0.2, name="lrelu"):
-  return tf.maximum(x, leak*x)
+    return tf.maximum(x, leak*x)
+
 
 def linear(input_, output_size, scope=None, stddev=0.02, bias_start=0.0, with_w=False):
     shape = input_.get_shape().as_list()
@@ -124,34 +126,38 @@ def linear(input_, output_size, scope=None, stddev=0.02, bias_start=0.0, with_w=
         else:
             return tf.matmul(input_, matrix) + bias
 
-class linear_n:
-  def __init__(self, input_, output_size, scope=None, stddev=0.1, bias_start=0., train_scale=False):
-    shape = input_.get_shape().as_list()
-            
-    with tf.variable_scope(scope or "Linear"):
-        self.matrix = tf.get_variable("Matrix", [shape[1], output_size], tf.float32,
-            tf.random_normal_initializer(stddev=stddev))
-        self.scale = tf.get_variable("scale", [output_size], tf.float32, 
-                     tf.constant_initializer(1.0), trainable=train_scale)
-        self.b = tf.get_variable("bias", [output_size], tf.float32,
-                     tf.constant_initializer(bias_start))
-        self.scale_ = tf.get_variable("scale_", [output_size], tf.float32, 
-                     tf.constant_initializer(1.0))
-    
-    self.W = self.matrix * (self.scale/tf.sqrt(tf.reduce_sum(tf.square(self.matrix),0)))
-    self.out = self.output(input_)
-  def output(self, inp):
-    return tf.matmul(inp, self.W) + self.b
-  def init_op(self):
-    
-    mean = tf.reduce_mean(self.out, 0)
-    stdv = tf.sqrt(tf.reduce_mean(tf.square(self.out), 0))
-    self.out = (self.out - mean)/stdv
-    scale_update_op = tf.assign(self.scale, self.scale/stdv)
-    b_update_op = tf.assign(self.b, -mean/stdv)
-    return tf.group(*[scale_update_op, b_update_op])
-  def l2_normalize_op(self): 
-    self.W = self.W * (self.scale_/tf.sqrt(1e-6 + 
-             tf.reduce_sum(tf.square(self.W), 0)))
-    
 
+class linear_n:
+    def __init__(self, input_, output_size, scope=None, stddev=0.1,
+                 bias_start=0., train_scale=False):
+        shape = input_.get_shape().as_list()
+
+        with tf.variable_scope(scope or "Linear"):
+            self.matrix = tf.get_variable(
+                "Matrix", [shape[1], output_size], tf.float32,
+                tf.random_normal_initializer(stddev=stddev))
+            self.scale = tf.get_variable(
+                "scale", [output_size], tf.float32, tf.constant_initializer(1.0),
+                trainable=train_scale)
+            self.b = tf.get_variable(
+                "bias", [output_size], tf.float32, tf.constant_initializer(bias_start))
+            self.scale_ = tf.get_variable(
+                "scale_", [output_size], tf.float32, tf.constant_initializer(1.0))
+
+        self.W = self.matrix * (self.scale/tf.sqrt(tf.reduce_sum(tf.square(self.matrix),0)))
+        self.out = self.output(input_)
+
+    def output(self, inp):
+        return tf.matmul(inp, self.W) + self.b
+
+    def init_op(self):
+        mean = tf.reduce_mean(self.out, 0)
+        stdv = tf.sqrt(tf.reduce_mean(tf.square(self.out), 0))
+        self.out = (self.out - mean)/stdv
+        scale_update_op = tf.assign(self.scale, self.scale/stdv)
+        b_update_op = tf.assign(self.b, -mean/stdv)
+        return tf.group(*[scale_update_op, b_update_op])
+
+    def l2_normalize_op(self):
+        self.W = self.W * (self.scale_ / tf.sqrt(
+            1e-6 + tf.reduce_sum(tf.square(self.W), 0)))

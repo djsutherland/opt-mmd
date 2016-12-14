@@ -1,7 +1,7 @@
 This does the GAN training.
 
-Code (mostly) by Hsiao-Yu Tung; feel free to contact her at sfish0101@gmail.com
-if you have any questions.
+This code is based on [carpedm20/DCGAN-tensorflow](https://github.com/carpedm20/DCGAN-tensorflow). Hsiao-Yu Tung (sfish0101@gmail.com) did most of the modifications for the paper; feel free to contact her and/or Dougal Sutherland (dougal@gmail.com) with any questions. (Issues here are fine too.)
+
 
 ## Basic Usage:
 

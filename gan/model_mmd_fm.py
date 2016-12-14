@@ -1,13 +1,17 @@
-from __future__ import division
+from __future__ import division, print_function
+from glob import glob
 import os
 import time
-from glob import glob
-import tensorflow as tf
+
 import numpy as np
+import scipy.misc
 from six.moves import xrange
+import tensorflow as tf
+
 from mmd import mix_rbf_mmd2
-from ops import *
-from utils import *
+from ops import batch_norm, conv2d, deconv2d, linear, lrelu
+from utils import save_images
+
 
 class DCGAN(object):
     def __init__(self, sess, config, is_crop=True,
@@ -16,7 +20,6 @@ class DCGAN(object):
                  gfc_dim=1024, dfc_dim=1024, c_dim=3, dataset_name='default',
                  checkpoint_dir=None, sample_dir=None, log_dir=None):
         """
-
         Args:
             sess: TensorFlow session
             batch_size: The size of batch. Should be specified before training.
@@ -60,6 +63,8 @@ class DCGAN(object):
 
         self.dataset_name = dataset_name
         self.build_model()
+
+
     def imageRearrange(self, image, block=4):
         image = tf.slice(image, [0, 0, 0, 0], [block * block, -1, -1, -1])
         x1 = tf.batch_to_space(image, [[0, 0], [0, 0]], block)
@@ -69,6 +74,7 @@ class DCGAN(object):
             [1, self.output_size * block, self.output_size * block, self.c_dim])
         return image_r
 
+
     def build_model(self):
         self.global_step = tf.Variable(0, name="global_step", trainable=False)
         self.lr = tf.placeholder(tf.float32, shape=[])
@@ -76,77 +82,72 @@ class DCGAN(object):
                                     name='real_images')
         self.sample_images= tf.placeholder(tf.float32, [self.sample_size] + [self.output_size, self.output_size, self.c_dim],
                                         name='sample_images')
-        self.z = tf.placeholder(tf.float32, [None, self.z_dim],
-                                name='z')
+        self.z = tf.placeholder(tf.float32, [None, self.z_dim], name='z')
 
-        z_sum = tf.summary.histogram("z", self.z)
+        tf.summary.histogram("z", self.z)
 
         self.G = self.generator_mnist(self.z)
         images = tf.reshape(self.images, [self.batch_size, -1])
         G = tf.reshape(self.G, [self.batch_size, -1])
 
         phi_images = self.discriminator_k(images)
-        kernel_list = [2.0, 5.0, 10.0, 20.0, 40.0, 80.0]
+        bandwidths = [2.0, 5.0, 10.0, 20.0, 40.0, 80.0]
 
         if self.config.use_weighted_layer_kernel:
-          n_layer=len(phi_images)
-          for layer_id in range(n_layer):
-            with tf.variable_scope("dk_att_" + str(layer_id)):
-              dk_att = tf.get_variable("weight", [len(kernel_list)],
-                            tf.float32,
-                            tf.constant_initializer(1.0/float(len(kernel_list))))
-        m = tf.get_variable("m", (), tf.float32, tf.constant_initializer(np.float32(self.batch_size)), trainable=False)
+            n_layer = len(phi_images)
+            for layer_id in range(n_layer):
+                with tf.variable_scope("dk_att_" + str(layer_id)):
+                    dk_att = tf.get_variable(
+                        "weight", [len(bandwidths)], tf.float32,
+                        tf.constant_initializer(1 / len(bandwidths)))
         phi_G = self.discriminator_k(G, reuse=True)
         self.kernel_loss = tf.Variable(0.0, trainable=False, name="kernel_loss")
 
         if self.config.use_weighted_layer_kernel:
-          nlayer = len(phi_images)
-          if self.config.use_gan:
-            n_layer -= 1
-          phi_images_sum = tf.summary.histogram("phi_images", tf.concat(1, phi_images[1:]))
-          phi_G_sum = tf.summary.histogram("phi_G", tf.concat(1, phi_G[1:]))
+            n_layer = len(phi_images)
+            if self.config.use_gan:
+                n_layer -= 1
+            tf.summary.histogram("phi_images", tf.concat(1, phi_images[1:]))
+            tf.summary.histogram("phi_G", tf.concat(1, phi_G[1:]))
 
-          for layer_id in range(nlayer):
-            self.kernel_loss += mix_rbf_mmd2(
-              phi_G[layer_id], phi_images[layer_id],
-              sigmas=kernel_list,
-              wts=tf.exp(dk_att) / tf.reduce_sum(tf.exp(dk_att)))
+            for layer_id in range(n_layer):
+                self.kernel_loss += mix_rbf_mmd2(
+                    phi_G[layer_id], phi_images[layer_id],
+                    sigmas=bandwidths,
+                    wts=tf.exp(dk_att) / tf.reduce_sum(tf.exp(dk_att)))
         elif self.config.use_layer_kernel:
-          n_layer=len(phi_images)
-          for layer_id in range(n_layer):
-             kernel_loss = mix_rbf_mmd2(
-                phi_G[layer_id], phi_images[layer_id], sigmas=kernel_list)
-             kernel_loss_sum = tf.summary.scalar("kernel_loss_" + str(layer_id),                                                  kernel_loss)
-             self.kernel_loss += kernel_loss #pow(2, n_layer) * kernel_loss
-          if self.config.use_gan:
-            self.d_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(phi_images[-1], tf.ones_like(phi_images[-1])))
-            self.d_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(phi_G[-1], tf.zeros_like(phi_G[-1])))
-            self.d_loss = self.d_loss_real + self.d_loss_fake
-            d_loss_sum = tf.summary.scalar("d_loss", self.d_loss)
+            n_layer = len(phi_images)
+            for layer_id in range(n_layer):
+                kernel_loss = mix_rbf_mmd2(
+                    phi_G[layer_id], phi_images[layer_id], sigmas=bandwidths)
+                tf.summary.scalar("kernel_loss_" + str(layer_id), kernel_loss)
+                self.kernel_loss += kernel_loss #pow(2, n_layer) * kernel_loss
+            if self.config.use_gan:
+                self.d_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(phi_images[-1], tf.ones_like(phi_images[-1])))
+                self.d_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(phi_G[-1], tf.zeros_like(phi_G[-1])))
+                self.d_loss = self.d_loss_real + self.d_loss_fake
+                tf.summary.scalar("d_loss", self.d_loss)
         else:
-          if self.config.use_gan:
-            self.d_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(phi_images[-1], tf.ones_like(phi_images[-1])))
-            self.d_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(phi_G[-1], tf.zeros_like(phi_images[-1])))
-            self.g_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(phi_G[-1], tf.ones_like(phi_images[-1])))
-            self.d_loss = self.d_loss_real + self.d_loss_fake
-            d_loss_sum = tf.summary.scalar("d_loss", self.d_loss)
-            self.phiG = phi_G[-1]
-            phi_G = tf.concat(1, phi_G[0:-1])
-            phi_images = tf.concat(1, phi_images[0:-1])
+            if self.config.use_gan:
+                self.d_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(phi_images[-1], tf.ones_like(phi_images[-1])))
+                self.d_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(phi_G[-1], tf.zeros_like(phi_images[-1])))
+                self.g_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(phi_G[-1], tf.ones_like(phi_images[-1])))
+                self.d_loss = self.d_loss_real + self.d_loss_fake
+                tf.summary.scalar("d_loss", self.d_loss)
+                self.phiG = phi_G[-1]
+                phi_G = tf.concat(1, phi_G[0:-1])
+                phi_images = tf.concat(1, phi_images[0:-1])
 
-            print "use_gan"
-          phi_G = [phi_G]
-          phi_images = [phi_images]
-          nlayer = 1
-          #for k_bandwidth in kernel_list:
-          kernel_loss = mix_rbf_mmd2(phi_G[0], phi_images[0], sigmas=kernel_list)
-          self.kernel_loss = kernel_loss
-        kernel_loss_sum = tf.summary.scalar("kernel_loss", self.kernel_loss)
+                print("use_gan")
+            phi_G = [phi_G]
+            phi_images = [phi_images]
+            n_layer = 1
+            self.kernel_loss = mix_rbf_mmd2(phi_G[0], phi_images[0], sigmas=bandwidths)
+        tf.summary.scalar("kernel_loss", self.kernel_loss)
         self.kernel_loss = tf.sqrt(self.kernel_loss)
 
-        train_img_summary = tf.summary.image("train/input image", self.imageRearrange(tf.clip_by_value(self.images, 0, 1), 8))
-        gen_img_summary = tf.summary.image("train/gen image", self.imageRearrange(tf.clip_by_value(self.G, 0, 1), 8))
-
+        tf.summary.image("train/input image", self.imageRearrange(tf.clip_by_value(self.images, 0, 1), 8))
+        tf.summary.image("train/gen image", self.imageRearrange(tf.clip_by_value(self.G, 0, 1), 8))
 
         self.sampler = self.generator_mnist(self.z, is_train=False, reuse=True)
         t_vars = tf.trainable_variables()
@@ -199,78 +200,80 @@ class DCGAN(object):
         lr = self.config.learning_rate
         d_loss = 0
         for it in xrange(self.config.max_iteration):
-                if np.mod(it, batch_idxs) == 0:
-                    perm = np.random.permutation(len(data_X))
-                if np.mod(it, 10000) == 1:
-                  lr = lr * self.config.decay_rate
-                idx = np.mod(it, batch_idxs)
-                batch_images = data_X[perm[idx*config.batch_size:
-                                          (idx+1)*config.batch_size]]
+            if np.mod(it, batch_idxs) == 0:
+                perm = np.random.permutation(len(data_X))
+            if np.mod(it, 10000) == 1:
+                lr = lr * self.config.decay_rate
+            idx = np.mod(it, batch_idxs)
+            batch_images = data_X[perm[idx*config.batch_size:
+                                       (idx+1)*config.batch_size]]
 
-                batch_z = np.random.uniform(-1, 1, [config.batch_size,
-                                        self.z_dim]).astype(np.float32)
+            batch_z = np.random.uniform(
+                -1, 1, [config.batch_size, self.z_dim]).astype(np.float32)
 
-                if self.config.use_kernel:
-                     _, summary_str, step, kernel_loss = self.sess.run([
-                            kernel_d_optim,
-                            TrainSummary, self.global_step, self.kernel_loss],
-                            feed_dict={ self.lr: lr,
-                                        self.images: batch_images,
-                                        self.z: batch_z})
-                     _, summary_str, step, kernel_loss = self.sess.run([
-                            kernel_g_optim,
-                            TrainSummary, self.global_step, self.kernel_loss],
-                            feed_dict={ self.lr: lr,
-                                        self.images: batch_images,
-                                        self.z: batch_z})
-                counter += 1
-                if np.mod(counter, 10) == 1:
-                  if self.config.use_gan:
+            if self.config.use_kernel:
+                _, summary_str, step, kernel_loss = self.sess.run(
+                    [kernel_d_optim, TrainSummary, self.global_step,
+                     self.kernel_loss],
+                    feed_dict={self.lr: lr,
+                               self.images: batch_images,
+                               self.z: batch_z})
+                _, summary_str, step, kernel_loss = self.sess.run(
+                    [kernel_g_optim, TrainSummary, self.global_step,
+                     self.kernel_loss],
+                    feed_dict={self.lr: lr,
+                               self.images: batch_images,
+                               self.z: batch_z})
+            counter += 1
+            if np.mod(counter, 10) == 1:
+                if self.config.use_gan:
                     d_loss = self.sess.run(
-                            self.d_loss,
-                            feed_dict={ self.lr: lr,
-                                        self.images: batch_images,
-                                        self.z: batch_z})
-                  self.writer.add_summary(summary_str, step)
-                  print("optmmd Epoch: [%2d] time: %4.4f, kernel_loss: %.8f, d_loss: %.8f" \
-                    % (it, time.time() - start_time,
-                       kernel_loss, d_loss))
-                if np.mod(counter, 500) == 1:
-                    self.save(self.checkpoint_dir, counter)
-                    samples = self.sess.run(
-                        self.sampler,
-                         feed_dict={self.z: sample_z, self.images: sample_images}
-                    )
-                    print samples.shape
-                    save_images(samples[:64, :, :, :], [8, 8],
-                    os.path.join(self.sample_dir, 'train_{:02d}.png'.format(it)))
+                        self.d_loss,
+                        feed_dict={self.lr: lr,
+                                   self.images: batch_images,
+                                   self.z: batch_z})
+                self.writer.add_summary(summary_str, step)
+                print(("optmmd Epoch: [%2d] time: %4.4f, kernel_loss: %.8f, "
+                       "d_loss: %.8f") %
+                      (it, time.time() - start_time, kernel_loss, d_loss))
+            if np.mod(counter, 500) == 1:
+                self.save(self.checkpoint_dir, counter)
+                samples = self.sess.run(
+                    self.sampler,
+                    feed_dict={self.z: sample_z, self.images: sample_images})
+                print(samples.shape)
+                p = os.path.join(self.sample_dir, 'train_{:02d}.png'.format(it))
+                save_images(samples[:64, :, :, :], [8, 8], p)
 
 
     def sampling(self, config):
-      tf.initialize_all_variables().run()
-      print self.checkpoint_dir
-      if self.load(self.checkpoint_dir):
-        print "sucess"
-      else:
-        print "fail"
-        return
-      n = 1000
-      batches = n//self.batch_size
-      img_id = 0
-      sample_dir = os.path.join("tmp", config.name)
-      if not os.path.exists(sample_dir):
-        os.makedirs(sample_dir)
-      for batch_id in range(batches):
-        samples_z = np.random.uniform(-1, 1, size=(self.batch_size, self.z_dim))
-        [G] = self.sess.run([self.G], feed_dict={self.z: samples_z})
-        print "G shape", G.shape
-        for i in range(self.batch_size):
-          G_tmp = np.zeros((28, 28, 3))
-          G_tmp[:,:,:1] = G[i]
-          G_tmp[:,:,1:2] = G[i]
-          G_tmp[:,:,2:3] = G[i]
+        self.sess.run(tf.global_variables_initializer())
+        print(self.checkpoint_dir)
+        if self.load(self.checkpoint_dir):
+            print("sucess")
+        else:
+            print("fail")
+            return
+        n = 1000
+        batches = n // self.batch_size
+        sample_dir = os.path.join("tmp", config.name)
+        if not os.path.exists(sample_dir):
+            os.makedirs(sample_dir)
+        for batch_id in range(batches):
+            samples_z = np.random.uniform(-1, 1, size=(self.batch_size, self.z_dim))
+            [G] = self.sess.run([self.G], feed_dict={self.z: samples_z})
+            print("G shape", G.shape)
+            for i in range(self.batch_size):
+                G_tmp = np.zeros((28, 28, 3))
+                G_tmp[:,:,:1] = G[i]
+                G_tmp[:,:,1:2] = G[i]
+                G_tmp[:,:,2:3] = G[i]
 
-          scipy.misc.imsave(os.path.join(sample_dir, "img_" + str(i + batch_id * self.batch_size) + ".png"), G_tmp)
+                n = i + batch_id * self.batch_size
+                p = os.path.join(sample_dir, "img_{}.png".format(n))
+                scipy.misc.imsave(p, G_tmp)
+
+
     def discriminator_k(self, image, reuse=False):
         if reuse:
             tf.get_variable_scope().reuse_variables()
@@ -291,6 +294,7 @@ class DCGAN(object):
 
         else:
           return tf.concat(1, [image, h0, h1, h2, h3, h4])
+
 
     def discriminator(self, image, y=None, reuse=False):
         if reuse:
@@ -314,6 +318,7 @@ class DCGAN(object):
             else:
               return tf.nn.sigmoid(h2), h2, h1, h0
 
+
     def generator_mnist(self, z, is_train=True, reuse=False):
         if reuse:
             tf.get_variable_scope().reuse_variables()
@@ -324,6 +329,7 @@ class DCGAN(object):
         h4 = linear(tf.nn.relu(h3), 28 * 28 * 1, 'g_h4_lin', stddev=self.config.init)
 
         return tf.reshape(tf.nn.sigmoid(h4), [self.batch_size, 28, 28, 1])
+
 
     def generator(self, z, y=None, is_train=True, reuse=False):
         if reuse:
@@ -371,6 +377,7 @@ class DCGAN(object):
 
             return tf.nn.tanh(h2)
 
+
     def load_mnist(self):
         data_dir = os.path.join("./data", self.dataset_name)
 
@@ -404,6 +411,7 @@ class DCGAN(object):
 
         return X/255.,y
 
+
     def save(self, checkpoint_dir, step):
         model_name = "DCGAN.model"
         model_dir = "%s_%s_%s" % (self.dataset_name, self.batch_size, self.output_size)
@@ -415,6 +423,7 @@ class DCGAN(object):
         self.saver.save(self.sess,
                         os.path.join(checkpoint_dir, model_name),
                         global_step=step)
+
 
     def load(self, checkpoint_dir):
         print(" [*] Reading checkpoints...")
