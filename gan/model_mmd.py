@@ -192,7 +192,7 @@ class DCGAN(object):
             return
         n = 1000
         batches = n // self.batch_size
-        sample_dir = os.path.join("tmp", config.name)
+        sample_dir = os.path.join("official_samples", config.name)
         if not os.path.exists(sample_dir):
             os.makedirs(sample_dir)
         for batch_id in range(batches):

@@ -14,3 +14,5 @@ First download the MNIST files with `data/mnist/fetch.sh`.
 loss: `./run_mmd_fm.sh`.
 
 To visualize e.g. the MMD results with tensorboard: `tensorboard --logdir=logs_mmd --port=1234`.
+
+You can get more samples from the trained models by e.g. `./run_mmd.sh sample`, which will save one image per sample into `official_samples`.
