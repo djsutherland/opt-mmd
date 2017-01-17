@@ -156,17 +156,11 @@ class DCGAN(object):
                 -1, 1, [config.batch_size, self.z_dim]).astype(np.float32)
 
             if self.config.use_kernel:
-                if self.config.is_demo:
-                    summary_str, step, kernel_loss = self.sess.run(
-                        [TrainSummary, self.global_step, self.kernel_loss],
-                        feed_dict={self.lr: lr, self.images: batch_images,
-                                   self.z: batch_z})
-                else:
-                    _, summary_str, step, kernel_loss = self.sess.run(
-                        [kernel_optim, TrainSummary, self.global_step,
-                         self.kernel_loss],
-                        feed_dict={self.lr: lr, self.images: batch_images,
-                                   self.z: batch_z})
+                _, summary_str, step, kernel_loss = self.sess.run(
+                    [kernel_optim, TrainSummary, self.global_step,
+                     self.kernel_loss],
+                    feed_dict={self.lr: lr, self.images: batch_images,
+                               self.z: batch_z})
 
             counter += 1
             if np.mod(counter, 10) == 1:

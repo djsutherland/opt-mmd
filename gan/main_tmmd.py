@@ -1,5 +1,4 @@
 import os
-import scipy.misc
 import numpy as np
 
 from model_tmmd import DCGAN

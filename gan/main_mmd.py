@@ -1,5 +1,4 @@
 import os
-import scipy.misc
 import numpy as np
 
 from model_mmd import DCGAN
@@ -26,7 +25,6 @@ flags.DEFINE_boolean("is_train", False, "True for training, False for testing [F
 flags.DEFINE_boolean("is_crop", False, "True for training, False for testing [False]")
 flags.DEFINE_boolean("visualize", False, "True for visualizing, False for nothing [False]")
 flags.DEFINE_boolean("use_kernel", False, "Use kernel loss [False]")
-flags.DEFINE_boolean("is_demo", False, "For testing [False]")
 
 FLAGS = flags.FLAGS
 

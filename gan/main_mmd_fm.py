@@ -1,5 +1,4 @@
 import os
-import scipy.misc
 import numpy as np
 
 from model_mmd_fm import DCGAN
