@@ -2,6 +2,6 @@ Code for the paper "Generative Models and Model Criticism via Optimized Maximum 
 
 - General code for learning kernels for a fixed two-sample test, with Theano, is in [two_sample](two_sample); in particular, a Theano implementation of the estimator code is in [`two_sample/mmd.py`](two_sample/mmd.py).
 - Code for the GAN models, using TensorFlow, is in [gan](gan). If you just want a TensorFlow implementation of the estimator code, see [`gan/mmd.py`](gan/mmd.py).
-- Code for the efficient permutation test described in Section 3 in the development version and nightly builds of [Shogun](http://shogun.ml); look under [`shogun/src/shogun/statistical_testing`](https://github.com/shogun-toolbox/shogun/tree/master/src/shogun/statistical_testing). It'll be in the 6.0 release, when that comes out. An example of using it in the Python API is in [`two_sample/mmd_test.py`](two_sample/mmd_test.py); code to reproduce the experiments coming soon.
+- Code for the efficient permutation test described in Section 3 in the development version and nightly builds of [Shogun](http://shogun.ml); look under [`shogun/src/shogun/statistical_testing`](https://github.com/shogun-toolbox/shogun/tree/develop/src/shogun/statistical_testing). It'll be in the 6.0 release, when that comes out. An example of using it in the Python API is in [`two_sample/mmd_test.py`](two_sample/mmd_test.py); code to reproduce the experiments coming soon.
 
 This code is under a BSD license, but if you use it, please cite the paper.
