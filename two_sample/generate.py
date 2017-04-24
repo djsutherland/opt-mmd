@@ -62,7 +62,7 @@ def sample_blobs(n, ratio, rows=5, cols=5, sep=10, rs=None):
 ################################################################################
 ### Sample images from GANs
 
-def _load_mnist():
+def _load_mnist(dset='t10k'):
     # Basically taken from Lasagne/examples/mnist.py
     if sys.version_info[0] == 2:
         from urllib import urlretrieve
@@ -83,7 +83,7 @@ def _load_mnist():
         data = data.reshape(-1, 1, 28, 28)
         return data / np.float32(255)
 
-    return load_mnist_images('t10k-images-idx3-ubyte.gz')
+    return load_mnist_images(dset + '-images-idx3-ubyte.gz')
 
 
 def _sample_trained_minibatch_gan(params_file, n, batch_size, rs):
@@ -204,6 +204,7 @@ def add_problem_args(group):
                    type=int, metavar='DIM')
     g.add_argument('--blobs', type=float, metavar='EIG_RATIO')
     g.add_argument('--mnist-minibatch-gan', metavar='PARAMS_FILE')
+    g.add_argument('--mnist-traintest', action='store_true')
 
     g = group.add_mutually_exclusive_group()
     g.add_argument('--grayscale', action='store_true', default=False,
@@ -250,6 +251,13 @@ def generate_data(args, n, dtype=None, rs=None):
             n, args.mnist2_gan, rs=rs, grayscale=args.grayscale, bw=args.bw,
             trim_edges=args.trim_edges, clip=args.clip, scaled=args.scaled,
             discretize=args.discretize)
+    elif args.mnist_traintest:
+        rs = check_random_state(rs)
+        # MNIST loads as n x 1 x 28 x 28; want n x 784
+        X = _load_mnist('t10k').reshape(-1, 784)
+        X = X[rs.choice(X.shape[0], n, replace=False), :]
+        Y = _load_mnist('train').reshape(-1, 784)
+        Y = Y[rs.choice(Y.shape[0], n, replace=False), :]
     else:
         raise ValueError("No dataset passed")
 
