@@ -384,7 +384,8 @@ def main():
                         "with a linear kernel.")
 
     g = net.add_mutually_exclusive_group()
-    g.add_argument('--rbf-kernel', action='store_false', dest='linear_kernel',
+    g.add_argument('--rbf-kernel',
+                   default=False, action='store_false', dest='linear_kernel',
                    help="Use an RBF kernel; true by default.")
     g.add_argument('--linear-kernel', default=False, action='store_true')
 
