@@ -5,6 +5,7 @@ matplotlib
 scipy
 scikit-learn
 pandas
+tables
 six
 seaborn
 jupyter_client
