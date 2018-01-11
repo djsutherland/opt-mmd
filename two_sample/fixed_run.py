@@ -6,7 +6,11 @@ import multiprocessing as mp
 import os
 import sys
 
-import modshogun as sg
+try:
+    import modshogun as sg
+except ImportError:  # new versions just call it shogun
+    import shogun as sg
+
 import numpy as np
 import pandas as pd
 import progressbar as pb

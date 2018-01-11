@@ -9,7 +9,10 @@ import os
 
 import numpy as np
 from scipy import linalg, stats
-import modshogun as sg
+try:
+    import modshogun as sg
+except ImportError:  # new versions just call it shogun
+    import shogun as sg
 
 if 'OMP_NUM_THREADS' in os.environ:
     num_threads = int(os.environ['OMP_NUM_THREADS'])
